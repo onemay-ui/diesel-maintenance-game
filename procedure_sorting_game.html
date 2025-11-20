@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>柴油機維護 - 步驟排序遊戲</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f7f7f7;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 900px;
+            width: 100%;
+        }
+        .step-card {
+            background-color: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+            margin-bottom: 12px;
+            padding: 16px;
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            transition: transform 0.1s, box-shadow 0.2s, background-color 0.2s;
+            border-left: 5px solid #3b82f6; /* 初始藍色邊條 */
+        }
+        .step-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+        .step-card.selected {
+            border-left: 5px solid #f59e0b; /* 選中時為琥珀色 */
+            background-color: #fffbeb;
+            box-shadow: 0 6px 12px rgba(234, 179, 8, 0.4);
+        }
+        .step-card.correct {
+            border-left: 5px solid #10b981; /* 正確時為綠色 */
+            background-color: #f0fff4;
+            cursor: default; /* 正確時取消指針，防止點擊 */
+        }
+        .order-number {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #1e40af;
+            width: 40px;
+            text-align: center;
+            margin-right: 16px;
+            flex-shrink: 0;
+        }
+        .action-text {
+            flex-grow: 1;
+        }
+        .action-text .english {
+            font-weight: 600;
+            color: #1e3a8a;
+        }
+        .action-text .chinese {
+            font-size: 0.9rem;
+            color: #6b7280;
+        }
+        .check-button {
+            transition: all 0.2s;
+        }
+    </style>
+</head>
+<body class="p-4">
+
+    <div class="container bg-white p-6 md:p-10 shadow-2xl rounded-xl">
+        <h1 class="text-3xl font-bold text-center text-gray-800 mb-2">⚙️ 柴油機維護 - 步驟排序遊戲</h1>
+        <p id="procedure-title" class="text-xl font-semibold text-center text-indigo-600 mb-6">（程序標題）</p>
+        <p class="text-center text-gray-500 mb-8">點擊兩張卡片進行**交換順序**。請將步驟排列成正確的程序。</p>
+
+        <div id="steps-container" class="space-y-3">
+            <!-- 步驟卡片將由 JavaScript 注入 -->
+        </div>
+
+        <div id="message-box" class="mt-8 p-4 text-center rounded-lg font-semibold transition-all duration-300 hidden"></div>
+        
+        <div class="mt-6 flex justify-center space-x-4">
+            <button id="show-answer-button" class="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-full shadow-lg transform hover:scale-105" onclick="showCorrectOrder()">
+                顯示正確順序
+            </button>
+            <button id="check-button" class="check-button bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-full shadow-lg transform hover:scale-105" onclick="checkOrder()">
+                檢查順序
+            </button>
+            <button id="reset-button" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-full shadow-lg transform hover:scale-105" onclick="startGame()">
+                重新開始 (新順序)
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // =========================================================================
+        // 程序數據庫：包含一個或多個維護程序及其步驟
+        // order: 正確的步驟順序 (1, 2, 3...)
+        // action: 英文操作指令
+        // chinese: 中文說明
+        // =========================================================================
+        const PROCEDURE_DATA = [
+            {
+                title: "燃油噴油器拆卸與安裝程序",
+                steps: [
+                    { order: 1, action: "Shut off the diesel engine.", chinese: "關閉柴油機 (Shut off)" },
+                    { order: 2, action: "Relieve pressure from fuel system.", chinese: "釋放燃油系統壓力 (Relieve)" },
+                    { order: 3, action: "Dismount the high-pressure fuel line.", chinese: "拆下高壓燃油管 (Dismount)" },
+                    { order: 4, action: "Remove the injector mounting bolt.", chinese: "移除噴油器固定螺栓 (Remove)" },
+                    { order: 5, action: "Remove the injector from the cylinder head.", chinese: "拆下汽缸蓋上的噴油器 (Remove)" },
+                    { order: 6, action: "Check the new gasket and O-rings.", chinese: "檢查新的墊片/O型環 (Gasket)" },
+                    { order: 7, action: "Install the new injector.", chinese: "安裝新的噴油器" },
+                    { order: 8, action: "Tighten the mounting bolt to specification.", chinese: "按規格鎖緊固定螺栓 (Tightening)" },
+                    { order: 9, action: "Install the high-pressure fuel line.", chinese: "安裝高壓燃油管" },
+                    { order: 10, action: "Bleed the fuel system.", chinese: "排出燃油系統中的空氣" }
+                ]
+            }
+            // 可以在此處添加更多程序，例如：
+            /*
+            {
+                title: "調整氣門間隙程序",
+                steps: [
+                    { order: 1, action: "..." , chinese: "..." },
+                    // ...
+                ]
+            }
+            */
+        ];
+        // =========================================================================
+
+        let currentProcedure = [];
+        let selectedCards = [];
+        const stepsContainer = document.getElementById('steps-container');
+        const messageBox = document.getElementById('message-box');
+        const procedureTitle = document.getElementById('procedure-title');
+        const checkButton = document.getElementById('check-button');
+        const showAnswerButton = document.getElementById('show-answer-button');
+
+        
+        // 確保至少有一個程序可以開始遊戲
+        if (PROCEDURE_DATA.length === 0) {
+             document.getElementById('steps-container').innerHTML = '<p class="text-center text-red-600 font-bold">錯誤：PROCEDURE_DATA 中沒有定義任何程序步驟。</p>';
+        }
+
+        // Fisher-Yates Shuffle 隨機打亂陣列
+        function shuffle(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+
+        function createSteps(procedure) {
+            // 複製並隨機打亂步驟
+            const steps = JSON.parse(JSON.stringify(procedure.steps));
+            shuffle(steps);
+            
+            // 為卡片添加當前索引 (currentOrder)
+            steps.forEach((step, index) => {
+                step.currentOrder = index + 1;
+            });
+
+            currentProcedure = steps;
+            procedureTitle.textContent = procedure.title;
+        }
+
+        /**
+         * 渲染步驟卡片
+         * @param {boolean} isShowingAnswer - 如果為 true，則以正確順序和綠色樣式渲染
+         */
+        function renderSteps(isShowingAnswer = false) {
+            stepsContainer.innerHTML = '';
+            selectedCards = [];
+            
+            if (!isShowingAnswer) {
+                stepsContainer.classList.remove('pointer-events-none');
+                hideMessage();
+            }
+
+            currentProcedure.forEach((step, index) => {
+                const cardElement = document.createElement('div');
+                cardElement.id = `step-card-${index}`;
+                
+                // Add 'correct' class if we are showing the answer
+                cardElement.className = `step-card ${isShowingAnswer ? 'correct' : ''}`;
+                
+                cardElement.dataset.correctOrder = step.order;
+                cardElement.dataset.currentOrder = index + 1;
+                
+                // 只有在不是顯示答案模式下才允許點擊操作
+                if (!isShowingAnswer) {
+                    cardElement.onclick = () => handleCardClick(cardElement, index);
+                } else {
+                    cardElement.style.cursor = 'default';
+                }
+
+                const orderNumber = document.createElement('div');
+                orderNumber.className = 'order-number';
+                orderNumber.textContent = index + 1; // 顯示當前順序
+                
+                const actionText = document.createElement('div');
+                actionText.className = 'action-text';
+                actionText.innerHTML = `
+                    <div class="english">${step.action}</div>
+                    <div class="chinese">${step.chinese}</div>
+                `;
+
+                cardElement.appendChild(orderNumber);
+                cardElement.appendChild(actionText);
+                stepsContainer.appendChild(cardElement);
+            });
+            
+            // 確保按鈕狀態與遊戲狀態同步
+            if (!isShowingAnswer) {
+                checkButton.disabled = false;
+                showAnswerButton.disabled = false;
+            }
+        }
+
+        function handleCardClick(element, index) {
+            if (element.classList.contains('correct')) {
+                // 已確認正確的卡片不能再操作
+                return;
+            }
+
+            if (selectedCards.includes(index)) {
+                // 如果點擊已經選中的卡片，則取消選中
+                element.classList.remove('selected');
+                selectedCards = selectedCards.filter(i => i !== index);
+                hideMessage();
+                return;
+            }
+
+            if (selectedCards.length < 2) {
+                element.classList.add('selected');
+                selectedCards.push(index);
+
+                if (selectedCards.length === 2) {
+                    swapCards();
+                } else {
+                     showMessage('點擊第二張卡片來交換它們的位置。', 'bg-blue-100 text-blue-800');
+                }
+            }
+        }
+
+        function swapCards() {
+            const [index1, index2] = selectedCards;
+            
+            // 在數據陣列中交換位置
+            [currentProcedure[index1], currentProcedure[index2]] = [currentProcedure[index2], currentProcedure[index1]];
+
+            // 清空選中狀態並重新渲染
+            selectedCards = [];
+            renderSteps();
+            hideMessage();
+        }
+
+        function checkOrder() {
+            let correctCount = 0;
+            const totalSteps = currentProcedure.length;
+            
+            // 移除所有 previous selected 和 correct 樣式
+            document.querySelectorAll('.step-card').forEach(card => {
+                card.classList.remove('selected', 'correct');
+            });
+            
+            // 遍歷當前順序，檢查是否與正確順序匹配
+            currentProcedure.forEach((step, index) => {
+                const cardElement = stepsContainer.children[index];
+                const currentOrder = index + 1;
+                
+                if (step.order === currentOrder) {
+                    correctCount++;
+                    cardElement.classList.add('correct');
+                } else {
+                    cardElement.classList.remove('correct');
+                }
+            });
+
+            if (correctCount === totalSteps) {
+                showMessage('🎉 恭喜！程序順序完全正確！', 'bg-green-100 text-green-800');
+                stepsContainer.classList.add('pointer-events-none'); // 鎖定操作
+                checkButton.disabled = true;
+                showAnswerButton.disabled = true;
+            } else {
+                showMessage(`🤔 還有 ${totalSteps - correctCount} 個步驟不正確。綠色卡片已確認正確！`, 'bg-yellow-100 text-yellow-800');
+            }
+        }
+        
+        // 新增功能：顯示正確順序
+        function showCorrectOrder() {
+            // 1. 根據正確的順序號 (step.order) 對步驟陣列進行排序
+            currentProcedure.sort((a, b) => a.order - b.order);
+
+            // 2. 以「顯示答案模式」重新渲染步驟
+            renderSteps(true); 
+
+            // 3. 顯示提示訊息
+            showMessage('💡 正確順序已顯示。請點擊「重新開始」進行下一輪練習。', 'bg-red-100 text-red-800');
+            
+            // 4. 鎖定操作和檢查按鈕
+            stepsContainer.classList.add('pointer-events-none');
+            checkButton.disabled = true;
+            showAnswerButton.disabled = true;
+        }
+
+
+        function showMessage(text, className) {
+            messageBox.textContent = text;
+            messageBox.className = `mt-8 p-4 text-center rounded-lg font-semibold transition-all duration-300 ${className}`;
+            messageBox.style.display = 'block';
+        }
+
+        function hideMessage() {
+            messageBox.style.display = 'none';
+        }
+
+        function startGame() {
+            if (PROCEDURE_DATA.length === 0) return;
+            
+            // 隨機選擇一個程序 (如果有多個)
+            const randomProcedure = PROCEDURE_DATA[Math.floor(Math.random() * PROCEDURE_DATA.length)];
+            
+            createSteps(randomProcedure);
+            renderSteps(); // Render the shuffled state
+
+            // 確保按鈕被啟用
+            checkButton.disabled = false;
+            showAnswerButton.disabled = false;
+
+            showMessage('請將步驟卡片拖曳到正確的順序。', 'bg-blue-100 text-blue-800');
+        }
+
+        // 頁面加載時啟動遊戲
+        window.onload = startGame;
+        
+    </script>
+</body>
+</html>
